@@ -17,9 +17,10 @@ Finance research summarises the stock market with six standard **factors** (mark
 ## Repository structure
 
 ```
-ocn682-factor-regimes/
+Yang_final_project/
+├── LICENSE
 ├── README.md
-├── Yang_final_project.Rproj   # open this in RStudio (sets the project root)
+├── Yang_final_project.Rproj      # open this in RStudio (sets the project root)
 ├── _quarto.yml                   # Quarto project: renders report + slides into docs/
 ├── run_all.R                     # one-step reproduction
 ├── index.qmd                     # main report
@@ -48,7 +49,7 @@ ocn682-factor-regimes/
 |---|---|---|
 | Fama/French 5 factors (2x3) and Momentum, monthly | [Kenneth R. French Data Library](https://mba.tuck.dartmouth.edu/pages/faculty/ken.french/data_library.html) | Free public data; committed with attribution |
 | `USREC`, `GS10`, `TB3MS` | [FRED](https://fred.stlouisfed.org), Federal Reserve Bank of St. Louis | Free public data; committed |
-| `VIXCLS` (daily VIX) | FRED, data owned by Cboe | **Raw file not committed** (Cboe owns the data); `01_download_data.R` downloads it |
+| `VIXCLS` (daily VIX) | FRED; underlying data © Cboe | Committed with attribution for course reproducibility |
 
 See [`data/metadata/README.md`](data/metadata/README.md) for coverage, units and processing steps, and [`data/metadata/data_dictionary.csv`](data/metadata/data_dictionary.csv) for variable definitions.
 
@@ -84,12 +85,11 @@ All paths are relative (via `here::here()`), so the project runs from any locati
 ## Steps that cannot be fully automated
 
 - **Internet access** is needed for step 1. The French Library updates its files monthly, so a fresh download can shift results slightly. The committed raw files and `download_log.csv` record the vintage used.
-- **FRED files may need a browser.** FRED often blocks or stalls downloads from scripts (on some networks it never answers R), while the same links work in a browser. The four FRED raw files except VIX are committed to this repository, so a fresh clone does not need them. If you do need to (re)download them, open each link below in a browser and save the file into `data/raw/`. FRED's default name (e.g. `USREC.csv`) is fine; the script renames it and skips any FRED file that already exists.
+- **FRED files may need a browser.** FRED often blocks or stalls downloads from scripts (on some networks it never answers R), while the same links work in a browser. All raw files are committed to this repository, so a fresh clone runs without downloading anything from FRED. If you do need to (re)download them, open each link below in a browser and save the file into `data/raw/`. FRED's default name (e.g. `USREC.csv`) is fine; the script renames it and skips any FRED file that already exists.
   - <https://fred.stlouisfed.org/graph/fredgraph.csv?id=USREC>
   - <https://fred.stlouisfed.org/graph/fredgraph.csv?id=GS10>
   - <https://fred.stlouisfed.org/graph/fredgraph.csv?id=TB3MS>
   - <https://fred.stlouisfed.org/graph/fredgraph.csv?id=VIXCLS>
-- **VIX raw data** are not in the repository (see Data), so `VIXCLS` must be downloaded (link above) before step 2 on a fresh clone.
 - **GitHub Pages** is switched on once by hand: *Settings → Pages → Deploy from branch → `main` / `docs`*.
 
 ## Outputs

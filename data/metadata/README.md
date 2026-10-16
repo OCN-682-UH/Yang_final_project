@@ -11,7 +11,7 @@ All raw files are downloaded by `scripts/01_download_data.R`. They are kept exac
 | `fred_USREC.csv` | FRED, series `USREC` | Monthly | 1854 onward | NBER-based recession indicator, 0/1 |
 | `fred_GS10.csv` | FRED, series `GS10` (Board of Governors) | Monthly | 1953 onward | 10-year Treasury yield, % per year |
 | `fred_TB3MS.csv` | FRED, series `TB3MS` (Board of Governors) | Monthly | 1934 onward | 3-month T-bill rate, % per year |
-| `fred_VIXCLS.csv` | FRED, series `VIXCLS` (Cboe) | Daily | 1990 onward | VIX close. Missing = "." **Not committed to the repo** (see below) |
+| `fred_VIXCLS.csv` | FRED, series `VIXCLS` (Cboe) | Daily | 1990 onward | VIX close. Missing = "." |
 
 Source pages:
 
@@ -21,7 +21,7 @@ Source pages:
 ## Redistribution
 
 - The French Data Library and the Federal Reserve series (GS10, TB3MS) are free public data and are committed with attribution. USREC is FRED's indicator built from NBER business-cycle dates.
-- VIX data belong to Cboe. To be safe, the raw daily VIX file is excluded via `.gitignore`; run `scripts/01_download_data.R` to obtain it. Only monthly averages appear in the processed files.
+- VIX data are © Cboe and are redistributed by FRED. The raw daily file is included here, with attribution, only so that this course project can be reproduced without downloading (FRED blocks scripted downloads).
 - The French files are revised over time, so re-downloading may change numbers slightly. `download_log.csv` documents the vintage used.
 
 ## Processing (`scripts/02_process_data.R`)

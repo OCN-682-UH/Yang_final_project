@@ -1,7 +1,7 @@
 file,source_url,downloaded_utc
-french_ff5.csv,https://mba.tuck.dartmouth.edu/pages/faculty/ken.french/ftp/F-F_Research_Data_5_Factors_2x3_CSV.zip,2026-10-16 22:17:09 UTC
-french_mom.csv,https://mba.tuck.dartmouth.edu/pages/faculty/ken.french/ftp/F-F_Momentum_Factor_CSV.zip,2026-10-16 22:17:09 UTC
-fred_USREC.csv,https://fred.stlouisfed.org/graph/fredgraph.csv?id=USREC,2026-10-16 22:17:09 UTC
-fred_GS10.csv,https://fred.stlouisfed.org/graph/fredgraph.csv?id=GS10,2026-10-16 22:17:09 UTC
-fred_TB3MS.csv,https://fred.stlouisfed.org/graph/fredgraph.csv?id=TB3MS,2026-10-16 22:17:09 UTC
-fred_VIXCLS.csv,https://fred.stlouisfed.org/graph/fredgraph.csv?id=VIXCLS,2026-10-16 22:17:09 UTC
+french_ff5.csv,https://mba.tuck.dartmouth.edu/pages/faculty/ken.french/ftp/F-F_Research_Data_5_Factors_2x3_CSV.zip,2026-10-16 22:28:55 UTC
+french_mom.csv,https://mba.tuck.dartmouth.edu/pages/faculty/ken.french/ftp/F-F_Momentum_Factor_CSV.zip,2026-10-16 22:28:55 UTC
+fred_USREC.csv,https://fred.stlouisfed.org/graph/fredgraph.csv?id=USREC,2026-10-16 22:28:55 UTC
+fred_GS10.csv,https://fred.stlouisfed.org/graph/fredgraph.csv?id=GS10,2026-10-16 22:28:55 UTC
+fred_TB3MS.csv,https://fred.stlouisfed.org/graph/fredgraph.csv?id=TB3MS,2026-10-16 22:28:55 UTC
+fred_VIXCLS.csv,https://fred.stlouisfed.org/graph/fredgraph.csv?id=VIXCLS,2026-10-16 22:28:55 UTC

@@ -8,11 +8,15 @@
 /.quarto/
 *_files/
 *_cache/
+# ...but keep everything in docs/ (GitHub Pages needs the slides' support files)
+!docs/**
 
-# Cboe VIX raw data: re-download with scripts/01_download_data.R
-data/raw/fred_VIXCLS.csv
+# LaTeX / log files
+*.log
+
+# Leftovers from interrupted downloads
+*.curltmp
 
 # OS files
 .DS_Store
 Thumbs.db
-*.curltmp
