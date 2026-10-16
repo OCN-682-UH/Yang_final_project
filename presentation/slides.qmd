@@ -1,0 +1,262 @@
+---
+title: "Do Stock-Market Risk Premia Depend on the Economy?"
+subtitle: "OCN 682 / MBIO 612 Final Project"
+author: "Yang An"
+date: today
+format:
+  revealjs:
+    theme: simple
+    slide-number: true
+    transition: fade
+    footer: "Yang An · Factor premia across economic regimes"
+    code-line-numbers: true
+    fig-align: center
+execute:
+  echo: false
+---
+
+```{r}
+#| label: setup
+#| include: false
+source(here::here("scripts", "functions.R"))
+library(gt)
+ensure_processed_data()   # runs scripts 01/02 if data are missing
+
+panel <- read_csv(here("data", "processed", "factor_macro_monthly.csv"),
+                  show_col_types = FALSE) |>
+  label_factors()
+macro <- read_csv(here("data", "processed", "macro_monthly.csv"),
+                  show_col_types = FALSE)
+
+sample_start <- min(panel$date)
+sample_end   <- max(panel$date)
+recessions <- macro |>
+  filter(date >= sample_start, date <= sample_end) |>
+  recession_periods()
+pub_lines <- factor_info |>
+  filter(!is.na(pub_year)) |>
+  label_factors() |>
+  mutate(pub_date = make_date(pub_year, 1, 1))
+```
+
+## What is a "factor"? {.smaller}
+
+:::: {.columns}
+::: {.column width="55%"}
+A **factor** is a long–short stock portfolio:
+
+::: {.incremental}
+- **Size**: small firms − big firms
+- **Value**: cheap − expensive stocks
+- **Profitability**: robust − weak profits
+- **Investment**: conservative − aggressive investors
+- **Momentum**: past winners − past losers
+- **Market**: all stocks − T-bills
+:::
+:::
+::: {.column width="45%"}
+Their long-run average return is the **risk premium** used in asset pricing and investing.
+
+<br>
+
+**But:** a 60-year average may hide very different behaviour in good and bad times.
+:::
+::::
+
+::: {.notes}
+About 45 seconds. These six factors are the standard building blocks of empirical asset pricing (Fama–French five factors plus momentum). Each is a zero-cost portfolio, so its return is a pure "premium".
+:::
+
+## Questions
+
+1. Are factor premia different in **recessions** vs. expansions?
+2. Do premia change after months of **high market stress** (VIX)?
+3. Have premia **shrunk since they were published**?
+
+::: {.notes}
+About 30 seconds. Q1 is descriptive, Q2 uses information known in advance (lagged VIX), Q3 connects to the debate on whether publishing an anomaly makes it disappear (McLean & Pontiff 2016).
+:::
+
+## Data {.smaller}
+
+| Data | Source | Frequency |
+|---|---|---|
+| 6 factor returns | Kenneth R. French Data Library | Monthly, `r format(sample_start, "%Y")`–`r format(sample_end, "%Y")` |
+| NBER recession indicator | FRED (`USREC`) | Monthly |
+| 10-yr and 3-mo Treasury yields → term spread | FRED (`GS10`, `TB3MS`) | Monthly |
+| VIX volatility index | FRED (`VIXCLS`) | **Daily**, 1990– |
+
+<br>
+
+All data are public and downloaded by script, with no manual steps.
+
+::: {.notes}
+About 45 seconds. Emphasise that the two sources have different formats and frequencies, which is where most of the data wrangling happens.
+:::
+
+## Reproducible workflow
+
+```{mermaid}
+flowchart LR
+  A["French Library"] --> C["01_download_data.R"]
+  B["FRED"] --> C
+  C --> D["02_process_data.R<br/>parse · reshape · aggregate<br/>lag · join · check"]
+  D --> E["factor_macro_monthly.csv"]
+  E --> F["index.qmd report"]
+  E --> G["these slides"]
+```
+
+`source("run_all.R")` rebuilds everything from scratch.
+
+::: {.notes}
+About 1 minute. Walk through left to right: raw data are kept untouched in data/raw, the processing script writes data/processed, and both the report and these slides read the same processed file and the same plotting functions, so they can never disagree.
+:::
+
+## Wrangling challenge: French's CSV files {.smaller}
+
+The files mix text, a monthly block and an annual block, so `read_csv()` alone fails.
+
+```{.r code-line-numbers="2|4-7|11-14"}
+parse_french_csv <- function(path) {
+  lines <- read_lines(path)
+  # header row is the first line starting with a comma
+  header_idx <- which(str_detect(lines, "^\\s*,"))[1]
+  body       <- lines[(header_idx + 1):length(lines)]
+  is_month   <- str_detect(body, "^\\s*\\d{6}\\s*,")
+  body       <- body[seq_len(which(!is_month)[1] - 1)]
+  col_names  <- str_trim(str_split_1(lines[header_idx], ","))
+  col_names[1] <- "yyyymm"
+
+  read_csv(I(paste(body, collapse = "\n")), col_names = col_names,
+           na = c("-99.99", "-999")) |>
+    mutate(date = ymd(paste0(yyyymm, "01")), .before = 1) |>
+    select(-yyyymm)
+}
+```
+
+::: {.notes}
+About 1 minute. This is the "challenge / lesson" slide. Step through the highlighted lines: read raw lines, find the header, keep only the monthly rows, then parse. Lesson: writing one small, tested function was faster and more reliable than hand-editing the CSVs, and it means the project updates automatically when French posts new data.
+:::
+
+## Sixty years of factor returns
+
+```{r}
+#| fig-width: 10
+#| fig-height: 5.5
+plot_cumulative(panel, recessions)
+```
+
+::: {.notes}
+About 1 minute. Growth of one dollar, log scale, grey = recessions. Point out the factors with the biggest drawdowns around recessions (look at the rendered figure before the talk and name them).
+:::
+
+## Recessions vs. expansions {.smaller}
+
+```{r}
+panel |>
+  mutate(regime = if_else(usrec == 1, "Recession", "Expansion")) |>
+  summarise_premia(regime) |>
+  select(factor, regime, mean_ann, t_stat) |>
+  pivot_wider(names_from = regime, values_from = c(mean_ann, t_stat),
+              names_glue = "{regime}_{.value}") |>
+  select(factor, starts_with("Expansion"), starts_with("Recession")) |>
+  gt(rowname_col = "factor") |>
+  tab_spanner("Expansion", columns = starts_with("Expansion")) |>
+  tab_spanner("Recession", columns = starts_with("Recession")) |>
+  cols_label(Expansion_mean_ann = "Mean %/yr", Expansion_t_stat = "t",
+             Recession_mean_ann = "Mean %/yr", Recession_t_stat = "t") |>
+  fmt_number(columns = matches("mean_ann|t_stat"), decimals = 2) |>
+  tab_options(table.font.size = "80%")
+```
+
+::: {.notes}
+About 1 minute. Read off the two or three biggest differences. Remind the audience that recessions are only about 1 month in 7, so recession estimates are noisy.
+:::
+
+## After high-stress months (VIX)
+
+```{r}
+#| fig-width: 9
+#| fig-height: 5
+vix_panel <- panel |> filter(!is.na(vix_lag))
+vix_cuts  <- quantile(unique(vix_panel[c("date", "vix_lag")])$vix_lag,
+                      c(0, 1/3, 2/3, 1))
+vix_panel |>
+  mutate(vix_regime = cut(vix_lag, breaks = vix_cuts, include.lowest = TRUE,
+                          labels = c("Low", "Medium", "High"))) |>
+  group_by(factor, vix_regime) |>
+  summarise(mean = 12 * mean(ret), se = 12 * sd(ret) / sqrt(n()),
+            .groups = "drop") |>
+  mutate(lo = mean - 1.96 * se, hi = mean + 1.96 * se) |>
+  plot_vix_regimes()
+```
+
+::: {.notes}
+About 1 minute. Uses last month's VIX, so this is information an investor actually had. Point to which factors' intervals move away from zero in high-VIX months.
+:::
+
+## Many models: one regression per factor {.smaller}
+
+:::: {.columns}
+::: {.column width="40%"}
+```{.r}
+panel |>
+  group_by(factor) |>
+  nest() |>
+  mutate(
+    model = map(data, \(d)
+      lm(ret ~ usrec +
+           term_spread_lag,
+         data = d)),
+    coefs = map(model, tidy,
+                conf.int = TRUE))
+```
+:::
+::: {.column width="60%"}
+```{r}
+#| fig-width: 7
+#| fig-height: 4.5
+panel |>
+  filter(!is.na(term_spread_lag)) |>
+  fit_by_factor(ret ~ usrec + term_spread_lag) |>
+  select(factor, coefs) |>
+  unnest(coefs) |>
+  filter(term != "(Intercept)") |>
+  plot_coefs()
+```
+:::
+::::
+
+::: {.notes}
+About 1 minute. Same model, six factors, no copy-paste. Left panel: recession effect holding the yield curve fixed. Right panel: does last month's term spread predict this month's return?
+:::
+
+## Have premia faded since publication?
+
+```{r}
+#| fig-width: 10
+#| fig-height: 5.5
+rolling_premium(panel, window = 120) |>
+  plot_rolling(pub_lines)
+```
+
+::: {.notes}
+About 1 minute. Rolling 10-year averages; dashed line = year the anomaly was first published. Mention the before/after table in the report for the formal test.
+:::
+
+## Takeaways
+
+::: {.incremental}
+- **Recessions:** market premium flips from +9% to −7% per year, momentum vanishes; investment does *better* (+8.7%)
+- **High VIX:** market earns most afterwards, momentum earns nothing (crash risk)
+- **Publication:** all 5 anomaly premia shrink afterwards; size and investment nearly disappear
+- **Lesson:** reusable functions + one processed dataset kept the report and slides consistent and fully reproducible
+:::
+
+<br>
+
+Report, code and data: **OCN 682 GitHub organization → ocn682-factor-regimes**
+
+::: {.notes}
+About 45 seconds, then questions. Main message: a single 60-year average hides big differences across economic conditions and over time.
+:::

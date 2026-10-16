@@ -1,0 +1,348 @@
+---
+title: "Do Stock-Market Risk Premia Depend on the Economy?"
+subtitle: "Six equity factors across recessions, market stress, and academic publication"
+author: "Yang An"
+date: today
+format:
+  html:
+    theme: cosmo
+    toc: true
+    toc-depth: 2
+    number-sections: true
+    code-fold: true
+    code-tools: true
+    code-summary: "Show code"
+    embed-resources: true
+    fig-align: center
+bibliography: references.bib
+---
+
+```{r}
+#| label: setup
+#| include: false
+source(here::here("scripts", "functions.R"))
+library(gt)
+ensure_processed_data()   # runs scripts 01/02 if data are missing
+
+fig_dir <- here("outputs", "figures")
+tab_dir <- here("outputs", "tables")
+dir.create(fig_dir, recursive = TRUE, showWarnings = FALSE)
+dir.create(tab_dir, recursive = TRUE, showWarnings = FALSE)
+
+panel <- read_csv(here("data", "processed", "factor_macro_monthly.csv"),
+                  show_col_types = FALSE) |>
+  label_factors()
+macro <- read_csv(here("data", "processed", "macro_monthly.csv"),
+                  show_col_types = FALSE)
+
+sample_start <- min(panel$date)
+sample_end   <- max(panel$date)
+n_months     <- n_distinct(panel$date)
+
+recessions <- macro |>
+  filter(date >= sample_start, date <= sample_end) |>
+  recession_periods()
+
+pub_lines <- factor_info |>
+  filter(!is.na(pub_year)) |>
+  label_factors() |>
+  mutate(pub_date = make_date(pub_year, 1, 1))
+```
+
+# Question and motivation
+
+Finance research summarises the stock market with a handful of **factors**: long–short portfolios that buy one kind of stock and sell another (small vs. big firms, cheap vs. expensive, past winners vs. past losers, and so on). Their average returns, called *risk premia*, are widely used to price assets and build investment strategies [@fama1993; @fama2015].
+
+A premium estimated over sixty years is an average, though. This project asks whether that average hides large differences across economic conditions:
+
+::: {.callout-note icon=false}
+## Research questions
+1. **Business cycle.** Are factor premia different in NBER recessions than in expansions?
+2. **Market stress.** Do premia change after months of high market volatility (VIX)?
+3. **Stability over time.** Have premia shrunk since the underlying research was published [@mclean2016]?
+:::
+
+If premia depend strongly on the state of the economy, a single long-run average is a misleading guide to what an investor should expect next month.
+
+# Data
+
+```{r}
+#| label: tbl-sources
+#| tbl-cap: "Data sources. Full definitions are in `data/metadata/data_dictionary.csv`."
+tribble(
+  ~Variable, ~Source, ~Frequency, ~Use,
+  "Six factor returns (Mkt-RF, SMB, HML, RMW, CMA, Mom)",
+    "Kenneth R. French Data Library", "Monthly", "Outcome",
+  "NBER recession indicator (USREC)", "FRED", "Monthly", "Business-cycle regime",
+  "10-year minus 3-month Treasury yield (GS10, TB3MS)", "FRED", "Monthly",
+    "Term spread (predictor)",
+  "VIX index (VIXCLS)", "FRED / Cboe", "Daily → monthly mean", "Market-stress regime"
+) |>
+  gt() |>
+  tab_options(table.font.size = "90%")
+```
+
+The analysis sample covers **`r format(sample_start, "%B %Y")` to `r format(sample_end, "%B %Y")`** (`r n_months` months), of which `r sum(macro$usrec[macro$date >= sample_start & macro$date <= sample_end] == 1)` months are recessions. VIX analyses start in 1990, when the index begins. Factor returns come from @frenchlibrary and macro series from @fred.
+
+## Workflow
+
+```{mermaid}
+%%| label: fig-workflow
+%%| fig-cap: "Reproducible workflow. Each box is a script or document in the repository."
+flowchart LR
+  A["French Data Library<br/>5 factors + momentum"] --> C["01_download_data.R<br/>data/raw/"]
+  B["FRED<br/>USREC, GS10, TB3MS, VIX"] --> C
+  C --> D["02_process_data.R<br/>parse, reshape, aggregate,<br/>lag, join, check"]
+  D --> E["data/processed/<br/>factor_macro_monthly.csv"]
+  E --> F["index.qmd<br/>this report"]
+  E --> G["presentation/slides.qmd"]
+  F --> H["outputs/ figures + tables<br/>docs/ (GitHub Pages)"]
+```
+
+The processing step turns two differently formatted sources into one tidy panel with one row per factor-month. The main steps are parsing French's multi-block CSVs, averaging daily VIX into months, building the term spread, and lagging predictors by one month so they are known *before* each return is realised.
+
+# Results
+
+## Sixty years of factor returns
+
+```{r}
+#| label: fig-cumulative
+#| fig-cap: "Growth of one dollar invested in each factor (cumulative compounded factor return, log scale). Grey bands are NBER recessions. Dashed line = break-even."
+#| fig-width: 9
+#| fig-height: 5.5
+p_cum <- plot_cumulative(panel, recessions)
+save_fig(p_cum, "fig1_cumulative_returns.png", width = 9, height = 5.5)
+p_cum
+```
+
+@fig-cumulative shows that the factors do not grow smoothly. Recessions (grey) often coincide with sharp drawdowns or reversals, which motivates splitting the sample by regime.
+
+## Recessions vs. expansions
+
+```{r}
+#| label: regime-stats
+regime_stats <- panel |>
+  mutate(regime = if_else(usrec == 1, "Recession", "Expansion")) |>
+  summarise_premia(regime)
+
+write_csv(regime_stats, here(tab_dir, "tab1_regime_stats.csv"))
+
+stat <- function(f, reg, col = "mean_ann") {
+  regime_stats |> filter(factor == f, regime == reg) |> pull(.data[[col]])
+}
+```
+
+```{r}
+#| label: tbl-regimes
+#| tbl-cap: "Annualised factor premia by business-cycle regime. Mean = 12 × average monthly return; Sharpe = annualised mean / annualised SD; t = t-statistic of the monthly mean."
+regime_stats |>
+  select(factor, regime, n_months, mean_ann, sharpe, t_stat) |>
+  pivot_wider(names_from = regime,
+              values_from = c(n_months, mean_ann, sharpe, t_stat),
+              names_glue = "{regime}_{.value}") |>
+  select(factor, starts_with("Expansion"), starts_with("Recession")) |>
+  gt(rowname_col = "factor") |>
+  tab_spanner("Expansion", columns = starts_with("Expansion")) |>
+  tab_spanner("Recession", columns = starts_with("Recession")) |>
+  cols_label(
+    Expansion_n_months = "Months", Expansion_mean_ann = "Mean (%/yr)",
+    Expansion_sharpe   = "Sharpe", Expansion_t_stat   = "t",
+    Recession_n_months = "Months", Recession_mean_ann = "Mean (%/yr)",
+    Recession_sharpe   = "Sharpe", Recession_t_stat   = "t"
+  ) |>
+  fmt_number(columns = matches("mean_ann|sharpe|t_stat"), decimals = 2) |>
+  tab_source_note("Source: Kenneth R. French Data Library; NBER recession dates via FRED.")
+```
+
+The market factor earned `r fmt_pct(stat("Market", "Expansion"))` per year in expansions and `r fmt_pct(stat("Market", "Recession"))` in recessions. Momentum earned `r fmt_pct(stat("Momentum", "Expansion"))` in expansions versus `r fmt_pct(stat("Momentum", "Recession"))` in recessions, and value (HML) `r fmt_pct(stat("Value", "Expansion"))` versus `r fmt_pct(stat("Value", "Recession"))`. Recession estimates rest on only `r stat("Market", "Recession", "n_months")` months, so their *t*-statistics in @tbl-regimes are much less precise.
+
+## Market stress (VIX)
+
+```{r}
+#| label: fig-vix
+#| fig-cap: "Average annualised factor returns after low-, medium- and high-VIX months (terciles of the previous month's average VIX, 1990 onward). Bars are 95% confidence intervals."
+#| fig-width: 8
+#| fig-height: 5
+vix_panel <- panel |> filter(!is.na(vix_lag))
+vix_cuts  <- quantile(unique(vix_panel[c("date", "vix_lag")])$vix_lag, c(0, 1/3, 2/3, 1))
+
+vix_stats <- vix_panel |>
+  mutate(vix_regime = cut(vix_lag, breaks = vix_cuts, include.lowest = TRUE,
+                          labels = c("Low", "Medium", "High"))) |>
+  group_by(factor, vix_regime) |>
+  summarise(mean = 12 * mean(ret),
+            se   = 12 * sd(ret) / sqrt(n()),
+            n    = n(), .groups = "drop") |>
+  mutate(lo = mean - 1.96 * se, hi = mean + 1.96 * se)
+
+write_csv(vix_stats, here(tab_dir, "tab2_vix_terciles.csv"))
+
+p_vix <- plot_vix_regimes(vix_stats)
+save_fig(p_vix, "fig2_vix_terciles.png", width = 8, height = 5)
+p_vix
+```
+
+Tercile cut-offs are VIX = `r round(vix_cuts[2], 1)` and `r round(vix_cuts[3], 1)`. Because the regime is defined with the *previous* month's VIX, @fig-vix shows what an investor could have known in advance. Confidence intervals that overlap zero mean the factor's premium in that regime cannot be distinguished from zero.
+
+## Many-model workflow: one regression per factor
+
+Instead of copying the same model six times, the data are nested by factor and one regression per factor is fitted with `purrr::map()`:
+
+$$
+r_{f,t} = \alpha_f + \beta_f \,\text{Recession}_t + \gamma_f \,\text{TermSpread}_{t-1} + \varepsilon_{f,t}
+$$
+
+```{r}
+#| label: models
+models <- panel |>
+  filter(!is.na(term_spread_lag)) |>
+  fit_by_factor(ret ~ usrec + term_spread_lag)
+
+coefs <- models |>
+  select(factor, coefs) |>
+  unnest(coefs)
+
+model_fit <- models |>
+  select(factor, fit) |>
+  unnest(fit) |>
+  select(factor, r.squared, nobs)
+
+write_csv(coefs, here(tab_dir, "tab3_regression_coefficients.csv"))
+```
+
+::: {.panel-tabset}
+
+### Figure
+
+```{r}
+#| label: fig-coefs
+#| fig-cap: "Regression coefficients from fitting the model separately for each factor. Points are estimates, lines are 95% confidence intervals (OLS standard errors)."
+#| fig-width: 9
+#| fig-height: 4.5
+p_coef <- plot_coefs(filter(coefs, term != "(Intercept)"))
+save_fig(p_coef, "fig3_regression_coefficients.png", width = 9, height = 4.5)
+p_coef
+```
+
+### Table
+
+```{r}
+#| label: tbl-models
+#| tbl-cap: "Per-factor regression results (dependent variable: monthly return, %)."
+coefs |>
+  select(factor, term, estimate, std.error, p.value) |>
+  pivot_wider(names_from = term,
+              values_from = c(estimate, std.error, p.value),
+              names_glue = "{term}_{.value}") |>
+  left_join(model_fit, by = "factor") |>
+  select(factor,
+         `(Intercept)_estimate`,
+         usrec_estimate, usrec_std.error, usrec_p.value,
+         term_spread_lag_estimate, term_spread_lag_std.error, term_spread_lag_p.value,
+         r.squared, nobs) |>
+  gt(rowname_col = "factor") |>
+  tab_spanner("Recession", columns = starts_with("usrec")) |>
+  tab_spanner("Term spread (t−1)", columns = starts_with("term_spread")) |>
+  cols_label(
+    `(Intercept)_estimate` = "Intercept",
+    usrec_estimate = "β", usrec_std.error = "SE", usrec_p.value = "p",
+    term_spread_lag_estimate = "γ", term_spread_lag_std.error = "SE",
+    term_spread_lag_p.value = "p",
+    r.squared = "R²", nobs = "N"
+  ) |>
+  fmt_number(columns = c(ends_with("estimate"), ends_with("std.error"),
+                       ends_with("p.value"), r.squared), decimals = 3)
+```
+
+:::
+
+@fig-coefs puts all six models side by side. The left panel answers the recession question while controlling for the yield curve; the right panel shows whether a steeper yield curve last month predicts higher factor returns this month. The small R² values in @tbl-models are typical: monthly factor returns are mostly unpredictable noise.
+
+## Have premia shrunk since publication?
+
+```{r}
+#| label: fig-rolling
+#| fig-cap: "Rolling 10-year average return of each factor (shaded = 95% confidence band). Dashed lines mark the year the underlying anomaly was first published (see @tbl-prepost)."
+#| fig-width: 9
+#| fig-height: 5.5
+rolling <- rolling_premium(panel, window = 120)
+p_roll  <- plot_rolling(rolling, pub_lines)
+save_fig(p_roll, "fig4_rolling_premia.png", width = 9, height = 5.5)
+p_roll
+```
+
+```{r}
+#| label: tbl-prepost
+#| tbl-cap: "Average factor premia before vs. after the first academic publication of each anomaly. Change and p-value come from regressing monthly returns on a post-publication dummy, one model per factor."
+prepost <- panel |>
+  inner_join(select(pub_lines, factor, pub_year, pub_source), by = "factor") |>
+  mutate(post = as.integer(year(date) > pub_year)) |>
+  fit_by_factor(ret ~ post) |>
+  mutate(
+    pub_source = map_chr(data, \(d) first(d$pub_source)),
+    n_pre      = map_int(data, \(d) sum(d$post == 0)),
+    n_post     = map_int(data, \(d) sum(d$post == 1)),
+    pre        = map_dbl(model, \(m) coef(m)[["(Intercept)"]]),
+    change     = map_dbl(model, \(m) coef(m)[["post"]]),
+    p_value    = map_dbl(coefs, \(tb) tb$p.value[tb$term == "post"])
+  ) |>
+  transmute(factor, pub_source, n_pre, n_post,
+            pre_ann    = 12 * pre,
+            post_ann   = 12 * (pre + change),
+            change_ann = 12 * change,
+            p_value)
+
+write_csv(prepost, here(tab_dir, "tab4_pre_post_publication.csv"))
+
+prepost |>
+  gt(rowname_col = "factor") |>
+  cols_label(pub_source = "Published in", n_pre = "Months before",
+             n_post = "Months after", pre_ann = "Before (%/yr)",
+             post_ann = "After (%/yr)", change_ann = "Change",
+             p_value = "p") |>
+  fmt_number(columns = c(pre_ann, post_ann, change_ann), decimals = 2) |>
+  fmt_number(columns = p_value, decimals = 3)
+```
+
+```{r}
+#| label: prepost-summary
+#| include: false
+n_lower <- sum(prepost$change_ann < 0)
+```
+
+`r n_lower` of the `r nrow(prepost)` published factors have a lower average return after publication than before, consistent in direction with @mclean2016. Note that the "before" period for profitability and investment is long while the "after" period is short, so those comparisons are imprecise.
+
+# Discussion
+
+Three findings stand out.
+
+**1. Recessions matter a lot for the market and momentum, and barely at all for size and value.** The market premium swings from about +9% per year in expansions to about −7% in recessions (@tbl-regimes). In the regression that also controls for the yield curve, this is a drop of about 1.3 percentage points per month (*p* < 0.01, @fig-coefs). Momentum earns about 8% per year in expansions but essentially nothing in recessions, although that difference is not statistically significant once the term spread is controlled for. Size and value are almost identical in the two regimes. The one factor that does *better* in recessions is investment (conservative minus aggressive firms): about 8.7% per year versus 2.2% in expansions (*p* ≈ 0.02). Profitability is also slightly higher in recessions, so the two "quality-style" factors act as partial hedges when the economy shrinks.
+
+**2. Market stress is bad news for momentum and good news for the market risk premium.** After high-VIX months, the market factor earns its highest average return (about 13% per year), consistent with investors demanding more compensation when risk is high (@fig-vix). Momentum is the mirror image: about 9% per year after calm months but slightly negative after high-VIX months, with a very wide confidence interval. This matches the well-known momentum crashes that happen when markets rebound after turmoil, such as the 2009 crash visible in @fig-cumulative. Size, profitability and investment are all negative or near zero after calm months and positive after stressed months, but none of these differences is precisely estimated. The lagged term spread has little predictive power; only profitability shows a small, marginally significant positive relation.
+
+**3. Every published premium is smaller after publication.** All five anomaly factors earn less after their original paper than before (@tbl-prepost, @fig-rolling). The declines are largest and statistically significant for size (from about 6.6% to 0.4% per year, *p* ≈ 0.03) and investment (from about 4.4% to 0.2%, *p* ≈ 0.03). Momentum falls by almost 6 percentage points, much of it after 2009, and value roughly halves. These drops are in line with @mclean2016, although with a single cutoff date per factor we cannot separate "publication" from other changes over the same period.
+
+**What this means.** A single 60-year average is a poor description of what most of these factors deliver. Market and momentum premia depend strongly on the state of the economy, and the size, value and investment premia that look solid over the full sample have been close to zero in recent decades. Anyone using these factors to estimate expected returns should look at how premia change over time, not just the long-run average.
+
+**Limitations.**
+
+- NBER recession dates are announced months after the fact, so the recession split is descriptive, not something an investor could trade on in real time. The VIX and term-spread analyses use lagged values to avoid this problem.
+- Standard errors are ordinary OLS. Factor returns are heteroskedastic, and rolling windows overlap heavily, so the confidence bands are approximate.
+- Publication years are a simplification: ideas circulate as working papers before publication, and some factors (size, value) were documented in several papers.
+
+**Challenge and lesson.** The French CSV files contain multiple blocks (monthly, annual) with free-text headers, so they cannot be read with a single `read_csv()` call. Writing a small parser (`parse_french_csv()` in `scripts/functions.R`) and checking the result with assertions made the download-to-analysis pipeline fully automatic.
+
+# Reproducibility {.appendix}
+
+All figures and tables are regenerated when this document renders; copies are saved to `outputs/figures/` and `outputs/tables/`. See the repository README for the full run order.
+
+```{r}
+#| label: session-info
+#| code-fold: false
+sessionInfo()
+```
+
+# References {.appendix}
+
+::: {#refs}
+:::

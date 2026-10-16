@@ -1,0 +1,11 @@
+project:
+  type: default
+  output-dir: docs          # GitHub Pages serves this folder
+  render:
+    - index.qmd
+    - presentation/slides.qmd
+
+execute:
+  echo: true
+  warning: false
+  message: false
