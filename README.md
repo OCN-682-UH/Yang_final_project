@@ -19,7 +19,7 @@ Finance research summarises the stock market with six standard **factors** (mark
 ```
 ocn682-factor-regimes/
 ├── README.md
-├── ocn682-factor-regimes.Rproj   # open this in RStudio (sets the project root)
+├── Yang_final_project.Rproj   # open this in RStudio (sets the project root)
 ├── _quarto.yml                   # Quarto project: renders report + slides into docs/
 ├── run_all.R                     # one-step reproduction
 ├── index.qmd                     # main report
@@ -65,7 +65,7 @@ install.packages(c("tidyverse", "broom", "slider", "here", "scales", "curl",
 
 ## How to reproduce
 
-**One step.** Open `ocn682-factor-regimes.Rproj` in RStudio, then run:
+**One step.** Open `Yang_final_project.Rproj` in RStudio, then run:
 
 ```r
 source("run_all.R")
