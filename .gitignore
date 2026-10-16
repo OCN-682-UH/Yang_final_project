@@ -15,3 +15,4 @@ data/raw/fred_VIXCLS.csv
 # OS files
 .DS_Store
 Thumbs.db
+*.curltmp
