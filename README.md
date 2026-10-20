@@ -3,6 +3,10 @@
 **OCN 682 / MBIO 612 Data Science Fundamentals in R, Fall 2026: Final Independent Project**
 Author: Yang An
 
+Live report: https://01a15b94-2aa0-1985-c78c-1d74653112ee.share.connect.posit.cloud/
+
+Slides: https://01a15b94-2aa0-1985-c78c-1d74653112ee.share.connect.posit.cloud/presentation/slides.html
+
 ## Purpose and question
 
 Finance research summarises the stock market with six standard **factors** (market, size, value, profitability, investment, momentum). Their long-run average returns ("risk premia") are treated as fixed numbers. This project asks whether those premia actually depend on economic conditions:
